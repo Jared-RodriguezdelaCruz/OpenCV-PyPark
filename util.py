@@ -15,13 +15,10 @@ def empty_or_not(spot_bgr: np.ndarray) -> bool:
     img_resized = resize(spot_bgr, (15, 15, 3), anti_aliasing=True)
     img_resized = np.asarray(img_resized, dtype=np.float32)  # Asegura que sea ndarray
 
-    flat_data = np.array([img_resized.flatten()])  # Ahora sí, sin advertencias
+    flat_data = np.array([img_resized.flatten()]) 
 
     y_output = MODEL.predict(flat_data)
     return y_output[0] == 0
-
-
-
 
 def get_parking_spots_bboxes(connected_components):
     (totalLabels, label_ids, values, centroid) = connected_components

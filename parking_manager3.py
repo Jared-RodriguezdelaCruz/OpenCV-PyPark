@@ -23,7 +23,7 @@ mask = cv2.imread(MASK_PATH, cv2.IMREAD_GRAYSCALE)
 cap = cv2.VideoCapture(0)
 
 # Convertir a binaria
-_, binary_mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+_, binary_mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY) # type: ignore
 # Asegurar tipo correcto
 binary_mask = binary_mask.astype(np.uint8)
 
@@ -36,6 +36,9 @@ spots_status = [False] * len(spots)
 diffs = [0.0] * len(spots)
 previous_frame = None
 frame_nmr = 0
+
+import sys
+print(sys.path)
 
 while True:
     ret, frame = cap.read()
