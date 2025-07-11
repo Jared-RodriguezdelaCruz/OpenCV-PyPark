@@ -1,6 +1,0 @@
-opencv-python==4.11.0.86
-scikit-learn==1.7.0
-pandas==2.3.0
-Pillow==11.3.0
-scikit-image==0.25.2
-matplotlib==3.10.3
