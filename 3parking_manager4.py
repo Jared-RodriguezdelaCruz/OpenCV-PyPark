@@ -98,10 +98,11 @@ class ParkingSystem:
                 flat_data = img_resized.flatten().reshape(1, -1)
                 prediction = self.model.predict(flat_data)
                 
-                self.spots_status[i] = prediction[0] == 0  # 0 es vacío, 1 es ocupado
+                # 0 es vacío, 1 es ocupado. self.spots_status[i] será True si está libre.
+                self.spots_status[i] = prediction[0] == 0 
                 
                 # Dibujar rectángulo
-                color = (0, 255, 0) if self.spots_status[i] else (0, 0, 255)
+                color = (0, 255, 0) if self.spots_status[i] else (0, 0, 255) # Verde para libre, Rojo para ocupado
                 cv2.rectangle(frame, (x1, y1), (x1+w, y1+h), color, 2)
                 
                 # Mostrar estado en el espacio
@@ -113,16 +114,17 @@ class ParkingSystem:
                 print(f"Error procesando espacio {i}: {str(e)}")
                 continue
         
-        # Mostrar contador
+        # Mostrar contador de espacios disponibles en la parte superior izquierda
         available = sum(1 for status in self.spots_status if status is True)
         total = len([status for status in self.spots_status if status is not None])
         cv2.putText(frame, f'Disponibles: {available}/{total}', (10, 30),
                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         return frame
 
+
 if __name__ == "__main__":
     try:
-        parking_system = ParkingSystem(mask_path='mask.png')
+        parking_system = ParkingSystem(mask_path='maskk.png')
         
         cap = cv2.VideoCapture(CAMERA_URL)  # O usar un video: cv2.VideoCapture('parking.mp4')
         if not cap.isOpened():
