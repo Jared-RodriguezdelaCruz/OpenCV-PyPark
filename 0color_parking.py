@@ -3,7 +3,7 @@ import numpy as np
 from collections import deque
 
 # ===== CONFIGURACIÓN =====
-CAMERA_URL = "http://192.168.100.89:4747/video"
+CAMERA_URL = "http://192.168.13.251:4747/video"
 MIN_AREA = 500
 HISTORY_LENGTH = 5
 
