@@ -3,7 +3,7 @@ import numpy as np
 import joblib
 from skimage.transform import resize
 
-CAMERA_URL = "http://192.168.11.31:4747/video"
+CAMERA_URL = "http://192.168.100.89:4747/video"
 
 class ParkingSystem:
     def __init__(self, mask_path=None, model_path='parking_model.pkl'):
@@ -32,7 +32,7 @@ class ParkingSystem:
     def get_parking_spots_bboxes(self):
         # Corrección aquí: usar cv2.CV_32S en lugar de cv2.CV_32S
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
-            self.mask, connectivity=4, ltype=cv2.CV_32S)
+            self.mask, connectivity=4, ltype=cv2.CV_32S) # type: ignore
         
         slots = []
         for i in range(1, num_labels):  # Ignorar el fondo (etiqueta 0)
@@ -95,7 +95,7 @@ class ParkingSystem:
             try:
                 # Clasificar el espacio
                 img_resized = resize(spot_img, (15, 15, 3))
-                flat_data = img_resized.flatten().reshape(1, -1)
+                flat_data = img_resized.flatten().reshape(1, -1) # type: ignore
                 prediction = self.model.predict(flat_data)
                 
                 # 0 es vacío, 1 es ocupado. self.spots_status[i] será True si está libre.

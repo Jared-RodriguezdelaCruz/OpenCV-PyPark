@@ -6,7 +6,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
 from skimage.transform import resize
-from imblearn.over_sampling import RandomOverSampler
 
 
 def load_and_preprocess_images(folder, label, target_size=(15, 15)):
@@ -25,7 +24,7 @@ def load_and_preprocess_images(folder, label, target_size=(15, 15)):
                 continue
                 
             img_resized = resize(img, target_size + (3,))
-            images.append(img_resized.flatten())
+            images.append(img_resized.flatten()) # type: ignore
             labels.append(label)
         except Exception as e:
             print(f"Error procesando {img_path}: {str(e)}")
