@@ -8,7 +8,7 @@ def mostrar_camaras(camara1=0, camara2=1):
     camara1 (int): Índice de la primera cámara (por defecto 0)
     camara2 (int): Índice de la segunda cámara (por defecto 1)
     """
-    cap1 = cv2.VideoCapture(camara1)
+    cap1 = cv2.VideoCapture("http://192.168.11.223:4747/video")
     cap2 = cv2.VideoCapture(camara2)
 
     if not cap1.isOpened():
@@ -48,6 +48,7 @@ def mostrar_camaras(camara1=0, camara2=1):
             
             if cv2.waitKey(1) == ord('q'):
                 break
+            
     finally:
         cap1.release()
         cap2.release()
