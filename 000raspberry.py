@@ -22,7 +22,7 @@ def update_leds_grouped():
     if not doc: print("⚠️ No hay documento reciente"); return
 
     for i, slot in enumerate(doc["spots"]):
-        estado = GPIO.HIGH if slot["status"] == "occupied" else GPIO.LOW
+        estado = GPIO.HIGH if slot["status"] == "empty" else GPIO.LOW
         GPIO.output(LED_PINS[i], estado)
         print(f"LED {i} → {'ON' if estado == GPIO.HIGH else 'OFF'}")
 

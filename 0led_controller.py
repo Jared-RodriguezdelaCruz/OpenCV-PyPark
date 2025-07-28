@@ -85,3 +85,5 @@ if __name__ == "__main__":
         GPIO.cleanup()
         client.close()
         print("✅ Recursos liberados correctamente.")
+
+# Motor puente H,fotoresistor (digital), mandar esta info por bluetooth a appinventor
