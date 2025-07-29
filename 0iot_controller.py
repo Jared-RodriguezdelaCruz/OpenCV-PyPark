@@ -7,85 +7,86 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import uvicorn
 
-# IP: http://169.254.65.154:8000/
+# Server will run at: http://169.254.65.154:8000/
 
-# Pines para LEDs de parqueo
+# LED pins representing parking spots
 LED_PINS = [17, 18, 27, 22, 23, 24, 25, 5, 6, 13]
 
-# Pines para motor con puente H
+# H-bridge motor control pins
 MOTOR_IN1 = 20
 MOTOR_IN2 = 21
 
-# Pin para fotoresistor (lectura digital con tiempo de carga)
-LDR_PIN = 26
+# LS (Light sensor) pin for digital reading via RC charge
+LS_PIN = 26
 
-# Configurar GPIO
+# Configure GPIO board settings
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-# Configurar pines LED
+# Set up LED pins
 for pin in LED_PINS:
     GPIO.setup(pin, GPIO.OUT)
     GPIO.output(pin, GPIO.LOW)
-    GPIO.output(pin, GPIO.LOW)
 
-# Configurar motor
+# Set up motor control pins
 GPIO.setup(MOTOR_IN1, GPIO.OUT)
 GPIO.setup(MOTOR_IN2, GPIO.OUT)
 GPIO.output(MOTOR_IN1, GPIO.LOW)
 GPIO.output(MOTOR_IN2, GPIO.LOW)
 
-# Conexión MongoDB
+# Connect to MongoDB cluster
 MONGO_URI = "mongodb+srv://ANotRealName:54321@pypark.3exozxa.mongodb.net/"
 client = pymongo.MongoClient(MONGO_URI)
 db = client["parking_monitor"]
 collection = db["estados"]
 
-# FastAPI setup
+# Initialize FastAPI app
 app = FastAPI()
 
-# ---------- FUNCIONES ----------
+# Inserts a default document into the collection if it's empty
 def initialize_grouped_db():
     if collection.count_documents({}) == 0:
-        documento = {
+        document = {
             "timestamp": datetime.utcnow(),
             "totalSpots": len(LED_PINS),
             "availableSpots": len(LED_PINS),
             "spots": [{"index": i, "status": "empty"} for i in range(len(LED_PINS))]
         }
-        collection.insert_one(documento)
-        print("✅ Documento inicial agrupado insertado.")
+        collection.insert_one(document)
+        print("✅ Initial grouped document inserted.")
 
+# Retrieves the latest parking status and sets each LED accordingly
 def update_leds_grouped():
-    documento = collection.find_one(sort=[("timestamp", -1)])
-    if not documento:
-        print("⚠️ No se encontró ningún documento.")
+    document = collection.find_one(sort=[("timestamp", -1)])
+    if not document:
+        print("⚠️ No document found.")
         return
 
-    for i, spot in enumerate(documento["spots"]):
-        estado_gpio = GPIO.HIGH if spot["status"] == "empty" else GPIO.LOW
-        GPIO.output(LED_PINS[i], estado_gpio)
+    for i, spot in enumerate(document["spots"]):
+        gpio_state = GPIO.HIGH if spot["status"] == "empty" else GPIO.LOW
+        GPIO.output(LED_PINS[i], gpio_state)
 
-def simular_estado_aleatorio():
-    estados = []
-    libres = 0
+# Simulates random occupied/empty states for each parking spot
+def simulate_random_state():
+    states = []
+    available = 0
 
     for i in range(len(LED_PINS)):
         status = random.choice(["empty", "occupied"])
         if status == "empty":
-            libres += 1
-        estados.append({"index": i, "status": status})
+            available += 1
+        states.append({"index": i, "status": status})
 
-    documento = {
+    document = {
         "timestamp": datetime.utcnow(),
         "totalSpots": len(LED_PINS),
-        "availableSpots": libres,
-        "spots": estados
+        "availableSpots": available,
+        "spots": states
     }
-    collection.insert_one(documento)
+    collection.insert_one(document)
 
-# Lectura del LDR digital (basado en carga RC)
-def read_ldr_digital(pin):
+# Reads light intensity using digital method based on RC discharge
+def read_LS_digital(pin):
     count = 0
     GPIO.setup(pin, GPIO.OUT)
     GPIO.output(pin, False)
@@ -96,75 +97,77 @@ def read_ldr_digital(pin):
         count += 1
     return count
 
-def leer_luz():
-    valor = read_ldr_digital(LDR_PIN)
-    return "Luz" if valor < 1000 else "Oscuro"
+# Interprets LS value and returns ON/OFF based on threshold
+def read_light_status():
+    value = read_LS_digital(LS_PIN)
+    return "OFF" if value < 1000 else "ON"
 
-# Control del motor
-def motor_avanzar():
+# Activates motor in forward direction
+def motor_forward():
     GPIO.output(MOTOR_IN1, GPIO.HIGH)
     GPIO.output(MOTOR_IN2, GPIO.LOW)
-    return "Motor avanzando"
+    return "Motor moving forward"
 
-def motor_reversa():
+# Activates motor in reverse direction
+def motor_reverse():
     GPIO.output(MOTOR_IN1, GPIO.LOW)
     GPIO.output(MOTOR_IN2, GPIO.HIGH)
-    return "Motor en reversa"
+    return "Motor in reverse"
 
+# Stops motor
 def motor_stop():
     GPIO.output(MOTOR_IN1, GPIO.LOW)
     GPIO.output(MOTOR_IN2, GPIO.LOW)
-    return "Motor detenido"
+    return "Motor stopped"
 
-# ---------- RUTAS DE FASTAPI ----------
-@app.get("/estado")
-def estado_parqueo():
-    """Obtiene el estado de los espacios de parqueo"""
-    documento = collection.find_one(sort=[("timestamp", -1)])
-    if documento:
-        return {"timestamp": documento["timestamp"], "spots": documento["spots"]}
-    return {"message": "No se encontró estado de parqueo"}
+@app.get("/status")
+# Returns latest parking spot status from MongoDB
+def get_parking_status():
+    document = collection.find_one(sort=[("timestamp", -1)])
+    if document:
+        return {"timestamp": document["timestamp"], "spots": document["spots"]}
+    return {"message": "No parking data found"}
 
-@app.get("/motor/avanzar")
-def avanzar_motor():
-    return motor_avanzar()
+@app.get("/motor/forward")
+# Triggers forward motion of motor
+def trigger_motor_forward():
+    return motor_forward()
 
-@app.get("/motor/reversa")
-def reversa_motor():
-    return motor_reversa()
+@app.get("/motor/reverse")
+# Triggers reverse motion of motor
+def trigger_motor_reverse():
+    return motor_reverse()
 
 @app.get("/motor/stop")
-def detener_motor():
+# Stops the motor
+def trigger_motor_stop():
     return motor_stop()
 
-@app.get("/luz")
-def estado_luz():
-    """Obtiene el estado actual del fotoresistor"""
-    return {"estado_luz": leer_luz()}
+@app.get("/light")
+# Reads current light sensor status
+def get_light_status():
+    return {"light_status": read_light_status()}
 
-@app.get("/simular_estado")
-def simular_estado():
-    """Simula el estado de los espacios de parqueo"""
-    simular_estado_aleatorio()
-    return {"message": "Estado simulado y almacenado."}
+@app.get("/simulate_state")
+# Simulates random parking states and stores in DB
+def trigger_simulated_state():
+    simulate_random_state()
+    return {"message": "Simulated state stored."}
 
-# ---------- BUCLE PRINCIPAL (Solo se ejecuta una vez) ----------
 if __name__ == "__main__":
     try:
-        print("🟢 Iniciando sistema de monitoreo de parqueo...")
+        print("🟢 Starting parking monitoring system...")
         initialize_grouped_db()
+        simulate_random_state()
+        update_leds_grouped()
 
-        # Para simulación y control, pero no necesitamos el bucle mientras el servidor FastAPI esté corriendo
-        simular_estado_aleatorio()  # Simulación del estado de los espacios de parqueo
-        update_leds_grouped()  # Actualización de LEDs según el estado de los espacios
-
-        # Se mantiene el servidor FastAPI corriendo
+        # Runs FastAPI server
         uvicorn.run(app, host="0.0.0.0", port=8000)
 
     except KeyboardInterrupt:
-        print("\n🟥 Detenido por el usuario.")
+        print("\n🟥 Shutdown triggered by user.")
 
     finally:
         GPIO.cleanup()
         client.close()
-        print("✅ Recursos liberados.")
+        print("✅ Resources released.")
