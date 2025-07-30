@@ -6,18 +6,22 @@ from datetime import datetime
 from fastapi import FastAPI
 from pydantic import BaseModel
 import uvicorn
+import threading
 
 # Server will run at: http://169.254.65.154:8000/
 
 # LED pins representing parking spots
-LED_PINS = [17, 18, 27, 22, 23, 24, 25, 5, 6, 13]
+LED_PINS = [18, 23, 24, 25, 8, 7, 12, 16, 20, 21 ]
+
+# Fotoresistor pin for digital reading of light
+FOTORESISTOR_PIN = 26
+
+# BUZZER pin for reproducing a little sound
+BUZZER_PIN = 19
 
 # H-bridge motor control pins
-MOTOR_IN1 = 20
-MOTOR_IN2 = 21
-
-# LS (Light sensor) pin for digital reading via RC charge
-LS_PIN = 26
+MOTOR_PIN1 = 13
+MOTOR_PIN2 = 6
 
 # Configure GPIO board settings
 GPIO.setmode(GPIO.BCM)
@@ -28,11 +32,17 @@ for pin in LED_PINS:
     GPIO.setup(pin, GPIO.OUT)
     GPIO.output(pin, GPIO.LOW)
 
+# Set up the fotoresistor pin
+GPIO.setup(FOTORESISTOR_PIN, GPIO.IN)
+
+# Set up buzzer pin
+GPIO.setup(BUZZER_PIN, GPIO.OUT)
+
 # Set up motor control pins
-GPIO.setup(MOTOR_IN1, GPIO.OUT)
-GPIO.setup(MOTOR_IN2, GPIO.OUT)
-GPIO.output(MOTOR_IN1, GPIO.LOW)
-GPIO.output(MOTOR_IN2, GPIO.LOW)
+GPIO.setup(MOTOR_PIN1, GPIO.OUT)
+GPIO.setup(MOTOR_PIN2, GPIO.OUT)
+GPIO.output(MOTOR_PIN1, GPIO.LOW)
+GPIO.output(MOTOR_PIN2, GPIO.LOW)
 
 # Connect to MongoDB cluster
 MONGO_URI = "mongodb+srv://ANotRealName:54321@pypark.3exozxa.mongodb.net/"
@@ -65,6 +75,10 @@ def update_leds_grouped():
     for i, spot in enumerate(document["spots"]):
         gpio_state = GPIO.HIGH if spot["status"] == "empty" else GPIO.LOW
         GPIO.output(LED_PINS[i], gpio_state)
+        
+    # Activate buzzer if slot 1 is occupied
+    if i == 0 and spot["status"] == "empty":
+        activate_buzzer()
 
 # Simulates random occupied/empty states for each parking spot
 def simulate_random_state():
@@ -85,41 +99,52 @@ def simulate_random_state():
     }
     collection.insert_one(document)
 
-# Reads light intensity using digital method based on RC discharge
-def read_LS_digital(pin):
-    count = 0
-    GPIO.setup(pin, GPIO.OUT)
-    GPIO.output(pin, False)
-    time.sleep(0.1)
-
-    GPIO.setup(pin, GPIO.IN)
-    while GPIO.input(pin) == GPIO.LOW and count < 10000:
-        count += 1
-    return count
-
 # Interprets LS value and returns ON/OFF based on threshold
-def read_light_status():
-    value = read_LS_digital(LS_PIN)
-    return "OFF" if value < 1000 else "ON"
+def light_status():
+    ldr_value = GPIO.input(FOTORESISTOR_PIN)
+    
+    # Imprime el estado
+    if ldr_value == GPIO.HIGH:
+        print("Luz baja (LDR en estado alto)")
+    else:
+        print("Luz alta (LDR en estado bajo)")
 
 # Activates motor in forward direction
 def motor_forward():
-    GPIO.output(MOTOR_IN1, GPIO.HIGH)
-    GPIO.output(MOTOR_IN2, GPIO.LOW)
+    GPIO.output(MOTOR_PIN1, GPIO.HIGH)
+    GPIO.output(MOTOR_PIN2, GPIO.LOW)
     return "Motor moving forward"
 
 # Activates motor in reverse direction
 def motor_reverse():
-    GPIO.output(MOTOR_IN1, GPIO.LOW)
-    GPIO.output(MOTOR_IN2, GPIO.HIGH)
+    GPIO.output(MOTOR_PIN1, GPIO.LOW)
+    GPIO.output(MOTOR_PIN2, GPIO.HIGH)
     return "Motor in reverse"
 
 # Stops motor
 def motor_stop():
-    GPIO.output(MOTOR_IN1, GPIO.LOW)
-    GPIO.output(MOTOR_IN2, GPIO.LOW)
+    GPIO.output(MOTOR_PIN1, GPIO.LOW)
+    GPIO.output(MOTOR_PIN2, GPIO.LOW)
     return "Motor stopped"
 
+def beep(duration=0.1):
+    GPIO.output(BUZZER_PIN, GPIO.HIGH)
+    time.sleep(duration)
+    GPIO.output(BUZZER_PIN, GPIO.LOW)
+    time.sleep(0.08)
+    
+# Activates the buzzer for a specified duration
+def activate_buzzer():
+    beep(0.1)
+    beep(0.1)
+    time.sleep(0.2)
+    beep(0.08)
+    beep(0.08)
+    beep(0.08)
+    time.sleep(0.2)
+    beep(0.1)
+    beep(0.1)
+    
 @app.get("/status")
 # Returns latest parking spot status from MongoDB
 def get_parking_status():
@@ -128,6 +153,11 @@ def get_parking_status():
         return {"timestamp": document["timestamp"], "spots": document["spots"]}
     return {"message": "No parking data found"}
 
+@app.get("/buzzer")
+def get_buzzer():
+    activate_buzzer()
+    return {"message": "Buzzing"}
+        
 @app.get("/motor/forward")
 # Triggers forward motion of motor
 def trigger_motor_forward():
@@ -143,23 +173,33 @@ def trigger_motor_reverse():
 def trigger_motor_stop():
     return motor_stop()
 
-@app.get("/light")
+@app.get("/fotoresistor")
 # Reads current light sensor status
 def get_light_status():
-    return {"light_status": read_light_status()}
+    return {"light_status": light_status()}
 
 @app.get("/simulate_state")
 # Simulates random parking states and stores in DB
 def trigger_simulated_state():
     simulate_random_state()
+    update_leds_grouped()
     return {"message": "Simulated state stored."}
+
+def periodic_update():
+    while True:
+        time.sleep(2)  # Simulate every 5 seconds
+        simulate_random_state()
+        update_leds_grouped()
 
 if __name__ == "__main__":
     try:
         print("🟢 Starting parking monitoring system...")
         initialize_grouped_db()
-        simulate_random_state()
-        update_leds_grouped()
+        
+        # Start the periodic update in a separate thread
+        update_thread = threading.Thread(target=periodic_update)
+        update_thread.daemon = True
+        update_thread.start()
 
         # Runs FastAPI server
         uvicorn.run(app, host="0.0.0.0", port=8000)
