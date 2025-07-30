@@ -19,9 +19,13 @@ FOTORESISTOR_PIN = 26
 # BUZZER pin for reproducing a little sound
 BUZZER_PIN = 19
 
+# ULTRA SONIC SENSOR  pins for measuring the distance
+ECHO_PIN = 13
+TRIGGER_PIN = 6
+
 # H-bridge motor control pins
-MOTOR_PIN1 = 13
-MOTOR_PIN2 = 6
+MOTOR_PIN1 = 22
+MOTOR_PIN2 = 27
 
 # Configure GPIO board settings
 GPIO.setmode(GPIO.BCM)
@@ -37,6 +41,10 @@ GPIO.setup(FOTORESISTOR_PIN, GPIO.IN)
 
 # Set up buzzer pin
 GPIO.setup(BUZZER_PIN, GPIO.OUT)
+
+# Set up ultrasonic sensor pins
+GPIO.setup(TRIGGER_PIN, GPIO.OUT)
+GPIO.setup(ECHO_PIN, GPIO.IN)
 
 # Set up motor control pins
 GPIO.setup(MOTOR_PIN1, GPIO.OUT)
@@ -127,6 +135,23 @@ def motor_stop():
     GPIO.output(MOTOR_PIN2, GPIO.LOW)
     return "Motor stopped"
 
+# Ultra sonicsensor
+def ultrasonic_sensor():
+    # Send  ultrasonic pulse
+    GPIO.output(TRIGGER_PIN, GPIO.HIGH)
+    time.sleep(0.00001)
+    GPIO.output(TRIGGER_PIN, GPIO.LOW)
+    # Wait until Echo activates
+    while GPIO.input(ECHO_PIN) == 0:
+        initial_pulse = time.time()
+    while GPIO.input(ECHO_PIN) == 1:
+        final_pulse = time.time()
+    # Calculate distance (cm)
+    duracion = final_pulse - initial_pulse
+    distance = (duracion * 34300) / 2  # Sounds speed (343 m/s)
+    
+    return distance
+    
 def beep(duration=0.1):
     GPIO.output(BUZZER_PIN, GPIO.HIGH)
     time.sleep(duration)
@@ -154,9 +179,15 @@ def get_parking_status():
     return {"message": "No parking data found"}
 
 @app.get("/buzzer")
+# Triggers a buzzing sound
 def get_buzzer():
     activate_buzzer()
     return {"message": "Buzzing"}
+
+@app.get("/ultrasonic")
+# Triggers the ultrasonic sensor
+def get_distance():
+    return {"Distance": ultrasonic_sensor()}
         
 @app.get("/motor/forward")
 # Triggers forward motion of motor
