@@ -11,7 +11,7 @@ import threading
 # Server will run at: http://169.254.65.154:8000/
 
 # LED pins representing parking spots
-LED_PINS = [18, 23, 24, 25, 8, 7, 12, 16, 20, 21 ]
+LED_PINS = [18, 23, 24, 25, 8, 7, 12, 16, 20, 21]
 
 # Fotoresistor pin for digital reading of light
 FOTORESISTOR_PIN = 26
@@ -35,9 +35,6 @@ GPIO.setwarnings(False)
 for pin in LED_PINS:
     GPIO.setup(pin, GPIO.OUT)
     GPIO.output(pin, GPIO.LOW)
-
-# Set up the fotoresistor pin
-GPIO.setup(FOTORESISTOR_PIN, GPIO.IN)
 
 # Set up buzzer pin
 GPIO.setup(BUZZER_PIN, GPIO.OUT)
@@ -84,9 +81,9 @@ def update_leds_grouped():
         gpio_state = GPIO.HIGH if spot["status"] == "empty" else GPIO.LOW
         GPIO.output(LED_PINS[i], gpio_state)
         
-    # Activate buzzer if slot 1 is occupied
-    if i == 0 and spot["status"] == "empty":
-        activate_buzzer()
+        # Activate buzzer if slot 1 is occupied
+        if i == 0 and spot["status"] == "occupied":
+            activate_buzzer()       
 
 # Simulates random occupied/empty states for each parking spot
 def simulate_random_state():
@@ -108,25 +105,33 @@ def simulate_random_state():
     collection.insert_one(document)
 
 # Interprets LS value and returns ON/OFF based on threshold
-def light_status():
-    ldr_value = GPIO.input(FOTORESISTOR_PIN)
-    
-    # Imprime el estado
-    if ldr_value == GPIO.HIGH:
-        print("Luz baja (LDR en estado alto)")
-    else:
-        print("Luz alta (LDR en estado bajo)")
+def fotoresistor():
+    count = 0
+
+    # Descarga el pin
+    GPIO.setup(FOTORESISTOR_PIN, GPIO.OUT)
+    GPIO.output(FOTORESISTOR_PIN, GPIO.LOW)
+    time.sleep(0.2)
+
+    # Empieza a contar
+    GPIO.setup(FOTORESISTOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    while GPIO.input(FOTORESISTOR_PIN) == GPIO.LOW:
+        count += 1
+
+    return count
 
 # Activates motor in forward direction
 def motor_forward():
     GPIO.output(MOTOR_PIN1, GPIO.HIGH)
     GPIO.output(MOTOR_PIN2, GPIO.LOW)
+    time.sleep(3)
     return "Motor moving forward"
 
 # Activates motor in reverse direction
 def motor_reverse():
     GPIO.output(MOTOR_PIN1, GPIO.LOW)
     GPIO.output(MOTOR_PIN2, GPIO.HIGH)
+    time.sleep(3)
     return "Motor in reverse"
 
 # Stops motor
@@ -141,16 +146,25 @@ def ultrasonic_sensor():
     GPIO.output(TRIGGER_PIN, GPIO.HIGH)
     time.sleep(0.00001)
     GPIO.output(TRIGGER_PIN, GPIO.LOW)
+    
+    timeout_start = time.time() 
     # Wait until Echo activates
     while GPIO.input(ECHO_PIN) == 0:
+        if time.time() - timeout_start > 1:
+            print("Timeout esperando el inicio de echo")
+            return -1
         initial_pulse = time.time()
+    timeout_start = time.time() 
     while GPIO.input(ECHO_PIN) == 1:
+        if time.time() - timeout_start > 1:
+            print("Timeout esperando el fin de echo")
+            return -1
         final_pulse = time.time()
     # Calculate distance (cm)
     duracion = final_pulse - initial_pulse
     distance = (duracion * 34300) / 2  # Sounds speed (343 m/s)
     
-    return distance
+    return round(distance, 2)
     
 def beep(duration=0.1):
     GPIO.output(BUZZER_PIN, GPIO.HIGH)
@@ -206,9 +220,17 @@ def trigger_motor_stop():
 
 @app.get("/fotoresistor")
 # Reads current light sensor status
-def get_light_status():
-    return {"light_status": light_status()}
-
+def get_fotoresistor():
+    light = fotoresistor()
+    
+    if light < 300:
+        return {"light_status": f"Too dark ({light})"}
+    elif light < 900:
+        return {"light_status": f"Average ilumination ({light})"}
+    else:
+        return {"light_status": f"Too much brightness! ({light})"}
+        
+        
 @app.get("/simulate_state")
 # Simulates random parking states and stores in DB
 def trigger_simulated_state():
@@ -218,7 +240,7 @@ def trigger_simulated_state():
 
 def periodic_update():
     while True:
-        time.sleep(2)  # Simulate every 5 seconds
+        time.sleep(3)  # Simulate every 3 seconds
         simulate_random_state()
         update_leds_grouped()
 

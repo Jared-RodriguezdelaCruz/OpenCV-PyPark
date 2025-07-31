@@ -4,7 +4,7 @@ import numpy as np              # NumPy for efficient numerical operations
 from collections import deque   # deque provides fast sliding windows for history tracking
 
 # ======== CONFIGURATION VARIABLES ========
-CAMERA_URL = "http://192.168.10.241:4747/video"  # Camera stream URL (can be phone or webcam over IP)
+CAMERA_URL = "http://192.168.62.244:4747/video"  # Camera stream URL (can be phone or webcam over IP)
 MIN_CORRELATION = 0.7     # Histogram correlation threshold: lower means more difference (indicates vehicle presence)
 HISTORY_LENGTH = 5        # Number of frames stored to smooth detection results and prevent flickering
 

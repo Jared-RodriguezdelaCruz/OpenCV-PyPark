@@ -2,6 +2,14 @@
 import cv2                     # OpenCV for image and video processing
 import numpy as np             # NumPy for numerical operations, especially image matrix manipulations
 from collections import deque  # deque enables fixed-length queues for tracking slot history (smoothing logic)
+from pymongo import MongoClient
+import datetime
+
+# Connect to MongoDB cluster
+MONGO_URI = "mongodb+srv://ANotRealName:54321@pypark.3exozxa.mongodb.net/"
+client = pymongo.MongoClient(MONGO_URI)
+db = client["parking_monitor"]
+collection = db["estados"]
 
 # ======== CONFIGURATION ========
 CAMERA_URL = "http://192.168.10.241:4747/video"  # URL for IP camera or phone stream (e.g., DroidCam)
@@ -106,6 +114,17 @@ def detect_occupation(roi, background_roi):
             return True  # Occupied
     return False         # Empty
 
+def log_slot_change(slot_states):
+    """Inserts a document with the full current state of all slots."""
+    doc = {
+        "timestamp": datetime.datetime.utcnow(),
+        "totalSpots": len(slot_states),
+        "availableSpots": slot_states.count(False),
+        "spots": [{"index": i, "status": "occupied" if state else "free"} for i, state in enumerate(slot_states)]
+    }
+    collection.insert_one(doc)
+    print("📄 Full slot state inserted.")
+
 # ======== MAIN MONITORING FUNCTION ========
 def main():
     """
@@ -162,6 +181,8 @@ def main():
     # === BACKGROUND CALIBRATION (NO CARS IN SLOTS) ===
     print("Make sure all parking slots are empty during calibration...")
     background = calibrate_background(cap)
+    
+    previous_states = slot_states.copy()
 
     # === START OCCUPANCY MONITORING LOOP ===
     print("Monitoring started... (Press 'q' to exit)")
@@ -196,6 +217,10 @@ def main():
             cv2.rectangle(frame, pt1, pt2, color, 2)
             status = "Ocupado" if slot_states[idx] else "Libre"
             cv2.putText(frame, status, (pt1[0], pt1[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
+            
+            if previous_states != slot_states:
+                log_slot_change(slot_states)
+                previous_states = slot_states.copy()
 
         # Show updated frame with status
         cv2.imshow("Parking Status", frame)
