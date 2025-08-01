@@ -2,11 +2,12 @@ import RPi.GPIO as GPIO
 import pymongo
 import random
 import time
+import uvicorn
+import threading
 from datetime import datetime
 from fastapi import FastAPI
 from pydantic import BaseModel
-import uvicorn
-import threading
+from fastapi.middleware.cors import CORSMiddleware
 
 # Server will run at: http://169.254.65.154:8000/
 
@@ -57,6 +58,13 @@ collection = db["estados"]
 
 # Initialize FastAPI app
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Inserts a default document into the collection if it's empty
 def initialize_grouped_db():
@@ -114,7 +122,7 @@ def fotoresistor():
     time.sleep(0.2)
 
     # Empieza a contar
-    GPIO.setup(FOTORESISTOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(FOTORESISTOR_PIN, GPIO.IN)
     while GPIO.input(FOTORESISTOR_PIN) == GPIO.LOW:
         count += 1
 
@@ -230,6 +238,38 @@ def get_fotoresistor():
     else:
         return {"light_status": f"Too much brightness! ({light})"}
         
+@app.get("/led_dance")
+def led_dance():
+    for pin in LED_PINS:
+        GPIO.output(pin, GPIO.LOW)
+        time.sleep(0.1)
+    
+    for pin in LED_PINS:
+        GPIO.output(pin, GPIO.HIGH)
+        time.sleep(0.1)
+
+    for pin in reversed(LED_PINS):
+        GPIO.output(pin, GPIO.LOW)
+        time.sleep(0.1)
+
+    for _ in range(3):
+        for pin in LED_PINS:
+            GPIO.output(pin, GPIO.HIGH)
+        time.sleep(0.1)
+        for pin in LED_PINS:
+            GPIO.output(pin, GPIO.LOW)
+        time.sleep(0.1)
+
+    update_leds_grouped()
+
+    return {"message": "💃 LED dance completed and restored"}
+
+@app.get("/sensor_data")
+def get_sensor_data():    
+    return {
+        "light": fotoresistor(),
+        "distance": ultrasonic_sensor()
+    }
         
 @app.get("/simulate_state")
 # Simulates random parking states and stores in DB
