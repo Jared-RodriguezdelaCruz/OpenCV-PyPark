@@ -77,13 +77,13 @@ motor_state = "stop"  # Values: "forward", "reverse", "stop"
 
 # ======== DATABASE INITIALIZATION ========
 def initialize_grouped_db():
-    """Creates initial document in MongoDB if collection is empty"""
+    """Creates initial document in MongoDB if collection is free"""
     if collection.count_documents({}) == 0:
         document = {
             "timestamp": datetime.utcnow(),
             "totalSpots": len(LED_PINS),
             "availableSpots": len(LED_PINS),
-            "spots": [{"index": i, "status": "empty"} for i in range(len(LED_PINS))]
+            "spots": [{"index": i, "status": "free"} for i in range(len(LED_PINS))]
         }
         collection.insert_one(document)
         print("✅ Initial grouped document inserted.")
@@ -97,22 +97,22 @@ def update_leds_grouped():
         return
 
     for i, spot in enumerate(document["spots"]):
-        # Turn LED on if spot is empty, off if occupied
-        gpio_state = GPIO.HIGH if spot["status"] == "empty" else GPIO.LOW
+        # Turn LED on if spot is free, off if occupied
+        gpio_state = GPIO.HIGH if spot["status"] == "free" else GPIO.LOW
         GPIO.output(LED_PINS[i], gpio_state)
         
         # Sound buzzer if first spot is occupied
         if i == 0 and spot["status"] == "occupied":
             activate_buzzer()   
 
-# Simulates random occupied/empty states for each parking spot
+# Simulates random occupied/free states for each parking spot
 def simulate_random_state():
     states = []
     available = 0
 
     for i in range(len(LED_PINS)):
-        status = random.choice(["empty", "occupied"])
-        if status == "empty":
+        status = random.choice(["free", "occupied"])
+        if status == "free":
             available += 1
         states.append({"index": i, "status": status})
 

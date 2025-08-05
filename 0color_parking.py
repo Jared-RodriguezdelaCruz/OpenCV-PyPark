@@ -4,6 +4,7 @@ import numpy as np             # NumPy for numerical operations, especially imag
 from collections import deque  # deque enables fixed-length queues for tracking slot history (smoothing logic)
 from pymongo import MongoClient
 import datetime
+import time
 
 # Connect to MongoDB cluster
 MONGO_URI = "mongodb+srv://ANotRealName:54321@pypark.3exozxa.mongodb.net/"
@@ -12,9 +13,10 @@ db = client["parking_monitor"]
 collection = db["estados"]
 
 # ======== CONFIGURATION ========
-CAMERA_URL = "http://192.168.10.241:4747/video"  # URL for IP camera or phone stream (e.g., DroidCam)
+CAMERA_URL = "http://192.168.61.120:4747/video"  # URL for IP camera or phone stream (e.g., DroidCam)
 MIN_AREA = 500         # Minimum contour area to consider movement as significant (likely a car)
 HISTORY_LENGTH = 5     # Number of previous frames used to smooth occupancy detection
+LOG_INTERVAL = 5
 
 # ======== GLOBAL VARIABLES ========
 drawing = False        # True when user is dragging the mouse to draw a parking slot
@@ -111,7 +113,7 @@ def detect_occupation(roi, background_roi):
 
     for contour in contours:
         if cv2.contourArea(contour) > MIN_AREA:
-            return True  # Occupied
+            return True  # occupied
     return False         # Empty
 
 def log_slot_change(slot_states):
@@ -183,6 +185,7 @@ def main():
     background = calibrate_background(cap)
     
     previous_states = slot_states.copy()
+    last_logged = time.time()
 
     # === START OCCUPANCY MONITORING LOOP ===
     print("Monitoring started... (Press 'q' to exit)")
@@ -215,12 +218,15 @@ def main():
             # Draw rectangle and status text
             color = (0, 0, 255) if slot_states[idx] else (0, 255, 0)  # Red = occupied, Green = free
             cv2.rectangle(frame, pt1, pt2, color, 2)
-            status = "Ocupado" if slot_states[idx] else "Libre"
+            status = "occupied" if slot_states[idx] else "free"
             cv2.putText(frame, status, (pt1[0], pt1[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
             
-            if previous_states != slot_states:
+        current_time = time.time()
+        if current_time - last_logged >= LOG_INTERVAL:
+            if slot_states != previous_states:
                 log_slot_change(slot_states)
                 previous_states = slot_states.copy()
+            last_logged = current_time
 
         # Show updated frame with status
         cv2.imshow("Parking Status", frame)
