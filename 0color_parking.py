@@ -7,7 +7,7 @@ import datetime
 
 # Connect to MongoDB cluster
 MONGO_URI = "mongodb+srv://ANotRealName:54321@pypark.3exozxa.mongodb.net/"
-client = pymongo.MongoClient(MONGO_URI)
+client = MongoClient(MONGO_URI)
 db = client["parking_monitor"]
 collection = db["estados"]
 

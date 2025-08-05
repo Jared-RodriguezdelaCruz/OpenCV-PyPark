@@ -16,9 +16,6 @@ from pydantic import BaseModel
 # LED pins representing parking spots
 LED_PINS = [18, 23, 24, 25, 8, 7, 12, 16, 20, 21]
 
-# Photoresistor pin for light sensing
-FOTORESISTOR_PIN = 26
-
 # Buzzer pin for audio feedback
 BUZZER_PIN = 19
 
@@ -72,6 +69,11 @@ app.add_middleware(
 
 class LightData(BaseModel):
     light: int
+
+# Global variable to store the fotoresistor value
+last_light_value = None
+
+motor_state = "stop"  # Values: "forward", "reverse", "stop"
 
 # ======== DATABASE INITIALIZATION ========
 def initialize_grouped_db():
@@ -148,26 +150,6 @@ def ultrasonic_sensor():
     distance = (duracion * 34300) / 2  # Sounds speed (343 m/s)
     
     return round(distance, 2)
-
-# Activates motor in forward direction
-def motor_forward():
-    GPIO.output(MOTOR_PIN1, GPIO.HIGH)
-    GPIO.output(MOTOR_PIN2, GPIO.LOW)
-    time.sleep(3)
-    return "Motor moving forward"
-
-# Activates motor in reverse direction
-def motor_reverse():
-    GPIO.output(MOTOR_PIN1, GPIO.LOW)
-    GPIO.output(MOTOR_PIN2, GPIO.HIGH)
-    time.sleep(3)
-    return "Motor in reverse"
-
-# Stops motor
-def motor_stop():
-    GPIO.output(MOTOR_PIN1, GPIO.LOW)
-    GPIO.output(MOTOR_PIN2, GPIO.LOW)
-    return "Motor stopped"
     
 # Reproduces a sound from the buzzer
 def beep(duration=0.1):
@@ -187,6 +169,21 @@ def activate_buzzer():
     time.sleep(0.2)
     beep(0.1)
     beep(0.1)
+    
+    
+def motor_control_loop():
+    global motor_state
+    while True:
+        if motor_state == "forward":
+            GPIO.output(MOTOR_PIN1, GPIO.HIGH)
+            GPIO.output(MOTOR_PIN2, GPIO.LOW)
+        elif motor_state == "reverse":
+            GPIO.output(MOTOR_PIN1, GPIO.LOW)
+            GPIO.output(MOTOR_PIN2, GPIO.HIGH)
+        else:  # "stop"
+            GPIO.output(MOTOR_PIN1, GPIO.LOW)
+            GPIO.output(MOTOR_PIN2, GPIO.LOW)
+        time.sleep(5)  # Refresh interval
 
 # ======== API ENDPOINTS ========
 @app.get("/status")
@@ -202,9 +199,6 @@ def get_parking_status():
 def get_buzzer():
     activate_buzzer()
     return {"message": "Buzzing"}
-    
-# Global variable to store the fotoresistor value
-last_light_value = None
 
 @app.post("/light_data")
 async def receive_light_data(data: LightData):
@@ -225,20 +219,12 @@ def get_fotoresistor():
 def get_distance():
     return f"Distance: {ultrasonic_sensor()}cm"
 
-@app.get("/motor/forward")
-# Triggers forward motion of motor
-def trigger_motor_forward():
-    return motor_forward()
+@app.get("/motor/set/{direction}")
+def set_motor_direction(direction: str):
+    global motor_state
 
-@app.get("/motor/reverse")
-# Triggers reverse motion of motor
-def trigger_motor_reverse():
-    return motor_reverse()
-
-@app.get("/motor/stop")
-# Stops the motor
-def trigger_motor_stop():
-    return motor_stop()
+    motor_state = direction
+    return {"message": f"Motor state set to '{direction}'"}
 
 @app.get("/led_dance")
 # Play a dance with the lights
@@ -293,6 +279,10 @@ if __name__ == "__main__":
         update_thread = threading.Thread(target=periodic_update)
         update_thread.daemon = True
         update_thread.start()
+        
+        motor_thread = threading.Thread(target=motor_control_loop)
+        motor_thread.daemon = True
+        motor_thread.start()
 
         # Run FastAPI server
         uvicorn.run(app, host="0.0.0.0", port=8000)
