@@ -77,13 +77,13 @@ motor_state = "stop"  # Values: "forward", "reverse", "stop"
 
 # ======== DATABASE INITIALIZATION ========
 def initialize_grouped_db():
-    """Creates initial document in MongoDB if collection is empty"""
+    """Creates initial document in MongoDB if collection is free"""
     if collection.count_documents({}) == 0:
         document = {
             "timestamp": datetime.utcnow(),
             "totalSpots": len(LED_PINS),
             "availableSpots": len(LED_PINS),
-            "spots": [{"index": i, "status": "empty"} for i in range(len(LED_PINS))]
+            "spots": [{"index": i, "status": "free"} for i in range(len(LED_PINS))]
         }
         collection.insert_one(document)
         print("✅ Initial grouped document inserted.")
@@ -97,22 +97,22 @@ def update_leds_grouped():
         return
 
     for i, spot in enumerate(document["spots"]):
-        # Turn LED on if spot is empty, off if occupied
-        gpio_state = GPIO.HIGH if spot["status"] == "empty" else GPIO.LOW
+        # Turn LED on if spot is free, off if occupied
+        gpio_state = GPIO.HIGH if spot["status"] == "free" else GPIO.LOW
         GPIO.output(LED_PINS[i], gpio_state)
         
         # Sound buzzer if first spot is occupied
         if i == 0 and spot["status"] == "occupied":
             activate_buzzer()   
 
-# Simulates random occupied/empty states for each parking spot
+# Simulates random occupied/free states for each parking spot
 def simulate_random_state():
     states = []
     available = 0
 
     for i in range(len(LED_PINS)):
-        status = random.choice(["empty", "occupied"])
-        if status == "empty":
+        status = random.choice(["free", "occupied"])
+        if status == "free":
             available += 1
         states.append({"index": i, "status": status})
 
@@ -170,7 +170,7 @@ def activate_buzzer():
     beep(0.1)
     beep(0.1)
     
-    
+# Controls the orientation of the motor
 def motor_control_loop():
     global motor_state
     while True:
@@ -183,7 +183,7 @@ def motor_control_loop():
         else:  # "stop"
             GPIO.output(MOTOR_PIN1, GPIO.LOW)
             GPIO.output(MOTOR_PIN2, GPIO.LOW)
-        time.sleep(5)  # Refresh interval
+        time.sleep(2)  # Refresh interval
 
 # ======== API ENDPOINTS ========
 @app.get("/status")
@@ -271,7 +271,7 @@ def trigger_simulated_state():
 def periodic_update():
     # Background loop that periodically simulates new parking data
     while True:
-        time.sleep(3)             # Wait for 3 seconds between updates
+        time.sleep(5)             # Wait for 3 seconds between updates
         simulate_random_state()   # Generate new random states
         update_leds_grouped()     # Update LEDs to reflect current state
         
