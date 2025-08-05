@@ -170,7 +170,7 @@ def activate_buzzer():
     beep(0.1)
     beep(0.1)
     
-    
+# Controls the orientation of the motor
 def motor_control_loop():
     global motor_state
     while True:
@@ -183,7 +183,7 @@ def motor_control_loop():
         else:  # "stop"
             GPIO.output(MOTOR_PIN1, GPIO.LOW)
             GPIO.output(MOTOR_PIN2, GPIO.LOW)
-        time.sleep(5)  # Refresh interval
+        time.sleep(2)  # Refresh interval
 
 # ======== API ENDPOINTS ========
 @app.get("/status")
@@ -271,7 +271,7 @@ def trigger_simulated_state():
 def periodic_update():
     # Background loop that periodically simulates new parking data
     while True:
-        time.sleep(3)             # Wait for 3 seconds between updates
+        time.sleep(5)             # Wait for 3 seconds between updates
         simulate_random_state()   # Generate new random states
         update_leds_grouped()     # Update LEDs to reflect current state
         
