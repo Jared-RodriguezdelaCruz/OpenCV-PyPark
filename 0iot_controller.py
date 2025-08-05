@@ -201,49 +201,53 @@ def get_buzzer():
     return {"message": "Buzzing"}
 
 @app.post("/light_data")
+# Receives and stores light sensor data from the frontend
 async def receive_light_data(data: LightData):
     global last_light_value
-    last_light_value = data.light
+    last_light_value = data.light  # Save the received light value globally
 
 @app.get("/fotoresistor")
+# Returns the latest photoresistor (light) value if available
 def get_fotoresistor():
     global last_light_value
-    
+
     if last_light_value is not None:
         return f"Light: {last_light_value}%"
     
+    # Error response if no light data has been received yet
     return {"status": "error", "message": "No data available"}
-        
+
 @app.get("/ultrasonic")
-# Triggers the ultrasonic sensor
+# Activates the ultrasonic sensor and returns measured distance
 def get_distance():
     return f"Distance: {ultrasonic_sensor()}cm"
 
 @app.get("/motor/set/{direction}")
+# Sets the motor direction to forward, reverse, or stop
 def set_motor_direction(direction: str):
     global motor_state
-
-    motor_state = direction
+    motor_state = direction  # Update global motor direction state
     return {"message": f"Motor state set to '{direction}'"}
 
 @app.get("/led_dance")
-# Play a dance with the lights
+# Runs a playful light sequence with the LEDs
 def led_dance():
-    # Turn off every led
+    # Step 1: Turn off all LEDs
     for pin in LED_PINS:
         GPIO.output(pin, GPIO.LOW)
         time.sleep(0.1)
     
-    #Turn on every led in ascending order
+    # Step 2: Turn on LEDs in ascending order
     for pin in LED_PINS:
         GPIO.output(pin, GPIO.HIGH)
         time.sleep(0.1)
 
-    #Turn off every led in descending order
+    # Step 3: Turn off LEDs in reverse order
     for pin in reversed(LED_PINS):
         GPIO.output(pin, GPIO.LOW)
         time.sleep(0.1)
 
+    # Step 4: Blink all LEDs together multiple times
     for _ in range(3):
         for pin in LED_PINS:
             GPIO.output(pin, GPIO.HIGH)
@@ -252,44 +256,48 @@ def led_dance():
             GPIO.output(pin, GPIO.LOW)
         time.sleep(0.1)
 
+    # Step 5: Restore LED states based on parking data
     update_leds_grouped()
 
     return {"message": "💃 LED dance completed and restored"}
-        
+
 @app.get("/simulate_state")
-# Simulates random parking states and stores in DB
+# Simulates and stores random parking spot availability
 def trigger_simulated_state():
-    simulate_random_state()
-    update_leds_grouped()
+    simulate_random_state()       # Generate new random states
+    update_leds_grouped()         # Reflect changes via LEDs
     return {"message": "Simulated state stored."}
 
 def periodic_update():
+    # Background loop that periodically simulates new parking data
     while True:
-        time.sleep(3)  # Simulate every 3 seconds
-        simulate_random_state()
-        update_leds_grouped()
+        time.sleep(3)             # Wait for 3 seconds between updates
+        simulate_random_state()   # Generate new random states
+        update_leds_grouped()     # Update LEDs to reflect current state
         
 # ======== MAIN EXECUTION ========
 if __name__ == "__main__":
     try:
         print("🟢 Starting parking monitoring system...")
-        initialize_grouped_db()
-        
-        # Start periodic updates in background thread
+        initialize_grouped_db()  # Initialize DB with base parking structure if needed
+
+        # Start parking update simulation in a background thread
         update_thread = threading.Thread(target=periodic_update)
         update_thread.daemon = True
         update_thread.start()
-        
+
+        # Start motor control logic in a background thread
         motor_thread = threading.Thread(target=motor_control_loop)
         motor_thread.daemon = True
         motor_thread.start()
 
-        # Run FastAPI server
+        # Launch FastAPI server to expose endpoints
         uvicorn.run(app, host="0.0.0.0", port=8000)
 
     except KeyboardInterrupt:
+        # Graceful shutdown triggered manually
         print("\n🟥 Shutdown triggered by user.")
     finally:
-        GPIO.cleanup()  # Reset GPIO pins
-        client.close()  # Close MongoDB connection
-        print("✅ Resources released.")
+        GPIO.cleanup()     # Clean up GPIO settings
+        client.close()     # Close MongoDB connection
+        print("✅ Resources released.")  # Log successful resource cleanup
